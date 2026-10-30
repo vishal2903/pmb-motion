@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PMB in Motion: Servers</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .stat .big{color:var(--ink)}
+  .top{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+  .top .panel{padding:20px 22px}
+  .hbar{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;padding:7px 0;font-size:14px}
+  .hbar .track{height:8px;border-radius:999px;background:var(--rule);overflow:hidden}
+  .hbar .track span{display:block;height:100%;border-radius:999px;background:var(--arc)}
+  .hbar.p .track span{background:var(--moving)}
+  .look li{list-style:none;padding:8px 0;border-top:1px solid var(--rule);font-size:14px}
+  .look li .meta{display:block}
+  .look .grp{margin-top:10px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+  .srv{padding:18px 20px;display:flex;flex-direction:column;gap:10px}
+  .srv header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+  .srv h3{font-weight:700;font-size:16px;line-height:1.25}
+  .srv .cost{text-align:right;white-space:nowrap}.srv .cost .big{font-size:30px;display:block}
+  .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .tag{font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(20,20,19,.05);color:var(--ink-mid)}
+  .tag.stg{background:rgba(62,91,216,.10);color:#2F45B0}
+  .uses{font-size:13px;color:var(--ink-dim)}
+  .uses b{color:var(--ink);font-weight:600}
+  .warn{font-size:12px;color:var(--wait);background:var(--wait-bg);border-radius:8px;padding:5px 9px;width:max-content}
+  .srv footer{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:10px;border-top:1px solid var(--rule);font-size:13px;color:var(--ink-dim)}
+  .srv footer .avatar{width:24px;height:24px;font-size:10px}
+  @media (max-width:1000px){.top{grid-template-columns:1fr}}
+</style></head>
+<body>
+<main class="wrap" id="app"></main>
+<script src="config.js"></script><script src="app.js"></script><script src="shell.js"></script>
+<script>
+function page(){
+const sum = arr => arr.reduce((t,s)=>t+(s.usd||0),0);
+const usd = n => "$"+n.toLocaleString("en-US",{maximumFractionDigits:0});
+const byKey = k => Object.entries(groupBy(SERVERS,k)).map(([name,ss])=>({name,ss,usd:sum(ss),missing:ss.some(x=>x.usd==null)})).sort((a,b)=>b.usd-a.usd);
+const maxUsd = arr => Math.max(...arr.map(x=>x.usd),1);
+function productsFor(s){
+  const rs = s.ids.map(id=>ROWS.find(r=>r.id===id)).filter(Boolean);
+  return productGroups(rs).map(g=>`<b>${g.product}</b> (${g.rows.map(clientName).join(", ")})`).join(" · ");
+}
+const unlinked = SERVERS.filter(s=>!s.ids.length), nocost = SERVERS.filter(s=>s.cost==null), staging = SERVERS.filter(s=>/staging/i.test(s.note+" "+s.name));
+const owners = byKey("owner"), providers = byKey("provider");
+const hbar = (x,max,cls) => `<div class="hbar ${cls}"><span>${x.name}</span><span class="track"><span style="width:${x.usd/max*100}%"></span></span><span class="num">${x.usd?usd(x.usd):(x.missing?"not entered":"$0")}</span></div>`;
+document.getElementById("app").innerHTML = `
+<section class="page-head rise"><div><h1>Where our servers <em>run</em></h1><p class="lede">Every server PMB pays for, what it costs each month, who owns it, and which products it runs. Shared servers are shown as shared, not split.</p></div>
+  <div class="stat"><span class="big">${usd(sum(SERVERS))}<span style="font-size:.45em">/mo</span></span><span class="meta">${SERVERS.length} servers · all in USD (₹ converted at ${USD_INR?"1 USD = "+USD_INR.toFixed(2)+" INR, live rate":"no rate available, INR servers left out"}) · ${src(SRC_C)}</span></div></section>
+<div class="top rise">
+  <div class="panel"><div class="label" style="margin-bottom:8px">Monthly cost by owner</div>${owners.map(o=>hbar(o,maxUsd(owners),"")).join("")}</div>
+  <div class="panel"><div class="label" style="margin-bottom:8px">Monthly cost by provider</div>${providers.map(p=>hbar(p,maxUsd(providers),"p")).join("")}</div>
+  <div class="panel look"><div class="label">Worth a look</div>
+    <div class="grp"><span class="chip c-waiting">${unlinked.length} not linked to a product</span></div><ul>${unlinked.slice(0,4).map(s=>`<li>${s.name}<span class="meta">${s.owner}</span></li>`).join("")}${unlinked.length>4?`<li class="meta">+ ${unlinked.length-4} more below</li>`:""}</ul>
+    <div class="grp"><span class="chip c-notset">${nocost.length} with no cost entered</span></div><ul>${nocost.map(s=>`<li>${s.name}<span class="meta">${s.owner}</span></li>`).join("")}</ul>
+    <div class="grp"><span class="chip c-testing">${plural(staging.length,"staging server")}</span> <span class="meta">${usd(sum(staging))}/mo</span></div>
+  </div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 12px"><span class="label">All servers, most expensive first</span>${src(SRC_C)}</div>
+<div class="grid">${SERVERS.slice().sort((a,b)=>(b.usd||0)-(a.usd||0)).map((s,i)=>`
+  <article class="panel srv rise" style="animation-delay:${i*20}ms">
+    <header><h3>${s.name}</h3><div class="cost">${s.cost==null?`<span class="chip c-notset">No cost</span>`:`<span class="big">${usd(s.usd)}</span><span class="meta">per month${s.cur==="INR"?` (₹${s.cost} entered)`:""}</span>`}</div></header>
+    <div class="tags"><span class="tag">${s.provider}</span>${s.region?`<span class="tag">${s.region}</span>`:""}${s.size?`<span class="tag">${s.size}</span>`:""}${/staging/i.test(s.note+" "+s.name)?`<span class="tag stg">Staging</span>`:""}</div>
+    ${s.ids.length?`<div class="uses">Runs: ${productsFor(s)}</div>`:`<div class="warn">Not linked to a product in the sheet</div>`}
+    ${s.note&&!/^(production|staging)$/i.test(s.note)?`<div class="uses">${s.note}</div>`:""}
+    <footer><span class="avatar">${initials(s.owner)}</span>${s.owner}${s.setupBy!==s.owner?` <span class="meta">· set up by ${s.setupBy}</span>`:""}</footer>
+  </article>`).join("")}</div>`;
+}
+boot(page);
+</script>
+</body></html>

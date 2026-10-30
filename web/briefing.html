@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PMB in Motion: Briefing</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .hero{display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:end;padding:34px 0 22px}
+  .hero h1{font-size:clamp(34px,4.2vw,54px)}
+  .hero .stat .big{font-size:clamp(80px,8.5vw,120px);color:var(--ink)}
+  .hero .stat .meta{margin-top:8px}
+  .made{display:grid;grid-template-columns:1.2fr 1fr;gap:32px;padding:22px 24px;margin-bottom:20px}
+  .made h2{margin-bottom:10px}
+  .cols{display:grid;grid-template-columns:1.55fr 1fr;gap:20px}
+  .sec{padding:22px 24px}.sec + .sec{margin-top:20px}
+  .sec-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .sec > .meta{margin-bottom:10px}
+  .prod{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--rule);cursor:pointer}
+  .prod:hover b{color:var(--accent)} .prod b{font-weight:700;transition:color .2s}
+  .wait{padding:13px 0;border-top:1px solid var(--rule)}
+  .wait b{font-weight:700}.wait q{display:block;color:var(--ink-mid);margin-top:4px}
+  .wait .done{color:var(--moving);font-size:13px;margin-top:4px}
+  .bill li{list-style:none;display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--rule);font-size:14px}
+  .months{display:flex;gap:3px}.months i{width:12px;height:12px;border-radius:4px;display:block}
+  .m-c{background:var(--moving)}.m-r{background:var(--warm)}.m-n{background:var(--rule-2)}.m-x{border:1px dashed var(--rule-2)}
+  .srv-mini{display:flex;justify-content:space-between;align-items:center;text-decoration:none}
+  .srv-mini .big{font-size:40px}
+  @media (max-width:900px){.hero,.cols,.made{grid-template-columns:1fr}.hero .stat{text-align:left}}
+</style></head>
+<body>
+<main class="wrap" id="app"></main>
+<script src="config.js"></script><script src="app.js"></script><script src="shell.js"></script>
+<script>
+function page(){
+const progressing=[...by("testing"),...by("building")], waiting=by("waiting");
+const prodRow = g => `<div class="prod" role="button" tabindex="0" data-product="${g.product}"><div><b>${g.product}</b><div class="meta">${g.rows.map(clientName).join(", ")}</div></div><span class="count">${plural(g.rows.length,"client")}</span></div>`;
+window.notFilledSheet = function(){
+  const g = Object.entries(groupBy(by("notset"),"lead")).sort((a,b)=>b[1].length-a[1].length);
+  openSheet(`${SH}<div class="label">Status not filled</div><div class="title" style="margin:6px 0 4px">${COUNT.notset} rows</div>
+    <p class="meta">Rows in the ${SRC_A} with an empty Status. Grouped by owner so each person can fill theirs.</p>
+    ${g.map(([l,rs])=>`<div class="sh-group"><div class="sh-gh"><b>${l==="Not set"?"No owner yet":l}</b><span class="count">${rs.length}</span></div>${rs.map(r=>`<div class="sh-item">${r.product} <span class="meta">· ${clientName(r)} · ${r.id}</span></div>`).join("")}</div>`).join("")}`);
+}
+const srvUsd = SERVERS.reduce((t,s)=>t+(s.usd||0),0);
+document.getElementById("app").innerHTML = `
+<section class="hero rise">
+  <div><div class="label" style="color:var(--accent)">${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · Live briefing</div>
+    <h1 style="margin-top:12px">${PROD_LIVE} products <em>live</em> across ${COUNT.delivered} client deployments. ${progressing.length} more in progress, ${waiting.length} waiting on clients.</h1></div>
+  <div class="stat"><span class="provisional">Provisional: Status filled on ${COMPLETENESS[0].pct}% of rows</span><span class="big" style="display:block;margin-top:8px">${NS.pct}%</span>
+    <span class="meta">of active work is live or being built: ${NS.inMotion} of ${NS.total} rows. <button class="link" onclick="nsSheet()">See the breakdown</button></span></div>
+</section>
+<section class="panel made rise">
+  <div><h2 class="label">What the ${NS.pct}% is made of</h2>${nsBreakdownHTML()}</div>
+  <div><h2 class="label">How complete the sheet is</h2>${completenessHTML()}<p class="meta" style="margin-top:8px">The number is provisional until these reach 100%. ${src(SRC_A)}</p></div>
+</section>
+<section class="cols">
+  <div>
+    <div class="panel sec"><div class="sec-head"><span class="label">Live</span><span class="chip c-delivered">${COUNT.delivered}</span></div>
+      <p class="meta">Rows marked Live, grouped by product. Click a product for every client.</p>${productGroups(by("delivered")).map(prodRow).join("")}</div>
+    <div class="panel sec"><div class="sec-head"><span class="label">In progress</span><span class="chip c-building">${progressing.length}</span></div>
+      <p class="meta">Rows marked Building or Pilot.</p>${productGroups(progressing).map(prodRow).join("")}</div>
+  </div>
+  <div>
+    <div class="panel sec"><div class="sec-head"><span class="label">Waiting on client</span><span class="chip c-waiting">${waiting.length}</span></div>
+      <p class="meta">The owner's own words from the Blockers column.</p>
+      ${waiting.map(r=>`<div class="wait"><b>${r.product} · ${r.client}</b>${r.done?`<div class="done">Done so far: ${r.done}</div>`:""}<q>${r.blocker}</q><div class="meta">${r.lead}${r.next?" · Next: "+r.next:""}</div></div>`).join("")}</div>
+    <div class="panel sec"><div class="sec-head"><span class="label">Billing by month</span></div><p class="meta">${src(SRC_B+", cell colours")}${FOLLOWUPS.length?` · ${plural(FOLLOWUPS.length,"follow-up")} logged in the Billing Follow-up tab`:" · No follow-ups logged yet in the Billing Follow-up tab"}</p>
+      <div class="legend" style="margin:0 0 6px"><span><i class="m-c"></i>Cleared</span><span><i class="m-r"></i>Raised</span><span><i class="m-n"></i>Not raised</span></div>
+      <ul class="bill">${BILLING.map(b=>`<li><span>${b.client}</span><span class="months">${MONTHS.map(m=>`<i class="${b.months[m]?"m-"+b.months[m]:"m-x"}" title="${m}: ${b.months[m]?BILL_LABEL[b.months[m]]:"no entry"}"></i>`).join("")}</span></li>`).join("")}</ul></div>
+    <div class="panel sec"><div class="sec-head"><span class="label">Latest client iterations</span><span class="count">${ITERATIONS.length}</span></div>
+      <p class="meta">From the Iteration Log tab, newest first.</p>
+      ${ITERATIONS.length ? ITERATIONS.slice(0,5).map(it=>`<div class="wait" role="button" tabindex="0" data-product="${it.row.product}" style="cursor:pointer"><b>${it.row.product} · ${clientName(it.row)}</b><q>${it.what||it.type||"Update"}</q><div class="meta">${[it.date,it.version,it.status].filter(Boolean).join(" · ")}</div></div>`).join("")
+        : `<p class="meta" style="margin:0">None logged yet. Devs add a row in the Iteration Log tab whenever a client asks for a change or a version ships.</p>`}</div>
+    <a class="panel sec srv-mini clickable" href="servers.html"><div><span class="label">Servers</span><div class="meta">${SERVERS.length} servers · see where the money goes</div></div><span class="big num">$${Math.round(srvUsd)}<span class="meta">/mo</span></span></a>
+    <div class="panel sec clickable" role="button" tabindex="0" onclick="notFilledSheet()"><div class="sec-head"><span class="label">Status not filled</span><span class="chip c-notset">${COUNT.notset}</span></div>
+      <p class="meta" style="margin:0">Rows with no Status yet, so they count against the North Star. Click to see whose they are.</p></div>
+  </div>
+</section>`;
+}
+boot(page);
+</script>
+</body></html>

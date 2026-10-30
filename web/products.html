@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PMB in Motion: Products</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr 1fr;gap:10px;align-items:stretch;margin-bottom:18px}
+  .stage{padding:14px 18px}.stage .big{font-size:42px;display:block;margin-top:4px}
+  .arrow{align-self:center;color:var(--rule-2)}.arrow svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .seg{display:flex;gap:2px;padding:3px;background:rgba(20,20,19,.045);border-radius:999px;width:max-content}
+  .seg button{border:0;background:transparent;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink-dim);cursor:pointer}
+  .seg button[aria-pressed=true]{background:var(--bg-3);color:var(--ink);box-shadow:0 1px 3px rgba(20,20,19,.1)}
+  /* Board */
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .col{padding:14px;background:rgba(255,255,255,.4)}
+  .col-head{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px}
+  .pc{background:var(--bg-3);border:1px solid var(--rule);border-radius:var(--r-sm);padding:14px;margin-bottom:10px}
+  .pc .t{font-weight:700;font-size:15px}.pc .clients{font-size:13px;color:var(--ink-dim);margin-top:4px}
+  .pc .foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+  .pc .note{font-size:12px;color:var(--wait);background:var(--wait-bg);border-radius:8px;padding:6px 8px;margin-top:8px}
+  .stack{display:flex}.stack .avatar{width:26px;height:26px;font-size:10px;border:2px solid var(--bg-3);margin-left:-6px}.stack .avatar:first-child{margin-left:0}
+  /* Track */
+  .track-wrap{padding:8px 24px 16px}
+  .scale{display:grid;grid-template-columns:240px repeat(3,1fr);padding:14px 0 10px;border-bottom:1px solid var(--rule)}
+  .lane{display:grid;grid-template-columns:240px 1fr;align-items:center;border-bottom:1px solid var(--rule);min-height:56px;cursor:pointer;border-radius:12px;transition:background .2s}
+  .lane:hover{background:rgba(255,255,255,.7)} .lane b{font-weight:700}.lane .meta{display:block}
+  .track{position:relative;height:56px;background:repeating-linear-gradient(90deg,transparent 0 calc(33.33% - 1px),var(--rule) calc(33.33% - 1px) 33.33%)}
+  .track::before{content:"";position:absolute;left:0;right:0;top:50%;height:2px;margin-top:-1px;background:linear-gradient(90deg,rgba(243,115,56,.25),rgba(3,79,70,.3))}
+  .md{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:2px solid var(--bg-2)}
+  .md.notset{border:2px dashed #6d675f;background:var(--bg-2)}
+  /* List + By client */
+  .line{display:grid;grid-template-columns:280px 1fr;gap:28px;align-items:start;padding:18px 22px;margin-bottom:12px}
+  .line .meta{margin:4px 0 12px}
+  .pills{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 10px;border-radius:999px;background:var(--bg-3);border:1px solid var(--rule);font-size:14px}
+  .pill small{color:var(--ink-faint);font-size:12px}
+  .bill{margin-top:12px;font-size:13px}
+  .b-c{color:var(--moving);font-weight:600}.b-r{color:#8a5a00;font-weight:600}.b-n{color:var(--ink-dim);font-weight:600}
+  .gapline{margin-top:16px;padding:14px 18px;border:1px dashed var(--rule-2);border-radius:var(--r);font-size:14px;color:var(--ink-dim)}
+  @media (max-width:1000px){.board{grid-template-columns:1fr 1fr}.pipe{grid-template-columns:1fr 1fr}.arrow{display:none}.line{grid-template-columns:1fr}}
+</style></head>
+<body>
+<main class="wrap" id="app"></main>
+<script src="config.js"></script><script src="app.js"></script><script src="shell.js"></script>
+<script>
+const ARROW = `<span class="arrow"><svg viewBox="0 0 24 24"><path d="M4 12h15M14 7l5 5-5 5"/></svg></span>`;
+const VIEWS_P = [["board","Board"],["track","Track"],["list","List"],["client","By client"]];
+let view = (location.hash.slice(1) in {board:1,track:1,list:1,client:1}) ? location.hash.slice(1) : "board";
+const n = s => ROWS.filter(r=>r.state===s).length;
+const latest = b => { const m=MONTHS.filter(x=>b.months[x]).pop(); return m?`Billing ${m}: <span class="b-${b.months[m]}">${BILL_LABEL[b.months[m]]}</span>`:""; };
+const pill = (r,label) => `<span class="pill"><i class="dot f-${r.state}"></i>${label}<small>${STATE[r.state].label}</small></span>`;
+
+function board(){
+  const card = (g,s) => { const leads=[...new Set(g.rows.map(r=>r.lead).filter(Boolean))], names=g.rows.map(clientName);
+    return `<article class="pc clickable" role="button" tabindex="0" data-product="${g.product}"><div class="t">${g.product}</div>
+      <div class="clients">${names.slice(0,3).join(", ")}${names.length>3?` +${names.length-3}`:""}</div>${s==="waiting"?`<div class="note">"${g.rows[0].blocker}"</div>`:""}
+      <div class="foot"><span class="count">${plural(g.rows.length,"client")}</span><span class="stack">${leads.map(l=>`<span class="avatar" title="${l}">${initials(l)}</span>`).join("")||`<span class="avatar empty">?</span>`}</span></div></article>`; };
+  return `<div class="board">${["building","testing","delivered","waiting"].map(s=>`<section class="panel col"><div class="col-head"><span class="chip c-${s}">${STATE[s].label}</span><span class="count">${n(s)}</span></div>
+    ${productGroups(by(s)).map(g=>card(g,s)).join("")||`<p class="meta" style="padding:4px">Nothing here right now.</p>`}</section>`).join("")}</div>`;
+}
+function track(){
+  const POS={building:16.6,testing:50,delivered:83.3,waiting:16.6,planned:4,notset:4,paused:4};
+  return `${legend()}<div class="panel track-wrap"><div class="scale"><span class="label">Product</span><span class="label">Building</span><span class="label">Testing</span><span class="label" style="color:var(--moving)">Live</span></div>
+  ${productGroups(ROWS).map(g=>`<div class="lane" role="button" tabindex="0" data-product="${g.product}"><div style="padding-left:8px"><b>${g.product}</b><span class="meta">live with ${g.delivered} of ${plural(g.rows.length,"client")}</span></div>
+    <div class="track">${g.rows.map(r=>{const same=g.rows.filter(x=>POS[x.state]===POS[r.state]),k=same.indexOf(r);
+      return `<span class="md f-${r.state} ${r.state}" title="${clientName(r)} · ${STATE[r.state].label}" style="left:calc(${POS[r.state]}% + ${(k-(same.length-1)/2)*18}px)"></span>`}).join("")}</div></div>`).join("")}</div>`;
+}
+function lines(key){
+  const groups = Object.entries(groupBy(ROWS,key)).map(([g,rs])=>({g,rs:rs.sort((a,b)=>STATE[a.state].order-STATE[b.state].order),d:rs.filter(r=>r.state==="delivered").length})).sort((a,b)=>b.d-a.d||b.rs.length-a.rs.length);
+  return `${legend()}${groups.map(({g,rs,d})=>{const b=key==="client"&&billFor(g);
+    return `<article class="panel line ${key==="product"?"clickable":""}" ${key==="product"?`role="button" tabindex="0" data-product="${g}"`:""}>
+      <div><div class="title">${g==="Internal"?"PMB (internal)":g}</div><div class="meta">live with ${d} of ${plural(rs.length,key==="product"?"client":"product")}</div>${stateBar(rs)}
+      ${key==="client"?`<div class="bill">${b?latest(b):`<span class="meta">Not in invoice sheet</span>`}</div>`:""}</div>
+      <div class="pills">${rs.map(r=>pill(r,key==="product"?clientName(r):r.product)).join("")}</div></article>`}).join("")}`;
+}
+function render(){
+  history.replaceState(null,"","#"+view);
+  const body = view==="board"?board():view==="track"?track():view==="list"?lines("product"):lines("client");
+  document.getElementById("app").innerHTML = `
+  <section class="page-head"><div><h1>Every product, <em>every client</em></h1><p class="lede">Where each product stands with each client. Switch views below; click any product for the full detail.</p></div>
+    <div class="stat"><span class="big">${PROD_LIVE}/${PROD_ALL}</span><span class="meta">products live · ${COUNT.delivered} live client deployments</span></div></section>
+  <div class="pipe">
+    <div class="panel stage"><span class="label">Building</span><span class="big" style="color:var(--arc)">${n("building")}</span><span class="meta">client deployments</span></div>${ARROW}
+    <div class="panel stage"><span class="label">Testing</span><span class="big" style="color:var(--test)">${n("testing")}</span><span class="meta">client deployments</span></div>${ARROW}
+    <div class="panel stage"><span class="label">Live</span><span class="big" style="color:var(--moving)">${n("delivered")}</span><span class="meta">client deployments</span></div>
+    <div class="panel stage"><span class="label">Waiting on client</span><span class="big" style="color:var(--wait)">${n("waiting")}</span><span class="meta">client deployments</span></div>
+  </div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="View">${VIEWS_P.map(([k,l])=>`<button aria-pressed="${k===view}" onclick="view='${k}';render()">${l}</button>`).join("")}</div>${src(SRC_A+(view==="client"?" · billing: "+SRC_B:""))}</div>
+  ${body}
+  ${view==="board"?`<div class="gapline"><b>${n("notset")} rows</b> have no Status in the sheet yet and are not on the board · ${n("planned")+n("paused")} planned or paused</div>`:""}`;
+}
+boot(render);
+</script>
+</body></html>

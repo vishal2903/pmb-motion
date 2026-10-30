@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PMB in Motion: People</title>
+<link rel="stylesheet" href="base.css">
+<style>
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+  .person{padding:20px 22px;display:flex;flex-direction:column}
+  .person header{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+  .person .title{font-size:21px}
+  .person .score{margin-left:auto;text-align:right}.person .score .big{font-size:36px;color:var(--moving);display:block}
+  .rows{margin-top:12px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--rule)}
+  .row b{font-weight:700;font-size:14px}.row .meta{display:block;margin-top:1px}
+  .person footer{margin-top:auto;padding-top:12px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center}
+</style></head>
+<body>
+<main class="wrap" id="app"></main>
+<script src="config.js"></script><script src="app.js"></script><script src="shell.js"></script>
+<script>
+function page(){
+const people = Object.entries(groupBy(ROWS.filter(r=>r.lead),"lead")).map(([lead,rs])=>({lead,rs,
+  s:prodSummary(rs)}))
+  .sort((a,b)=>b.s.productsLive-a.s.productsLive||b.s.products-a.s.products);
+function card(p,i){
+  const gs = productGroups(p.rs);
+  return `<article class="panel person clickable rise" style="animation-delay:${i*35}ms" role="button" tabindex="0" data-person="${p.lead}">
+    <header><span class="avatar lg">${initials(p.lead)}</span><div><div class="title">${p.lead}</div><div class="meta">Live with ${p.s.live} of ${plural(p.s.deployments,"client deployment")}</div></div>
+      <div class="score"><span class="big">${p.s.productsLive}/${p.s.products}</span><span class="label">Products live</span></div></header>
+    ${stateBar(p.rs)}
+    <div class="rows">${gs.slice(0,4).map(g=>{const states=[...new Set(g.rows.map(r=>r.state))];return `<div class="row"><div><b>${g.product}</b><span class="meta">${plural(g.rows.length,"client")}: ${g.rows.map(clientName).slice(0,3).join(", ")}${g.rows.length>3?"…":""}</span></div><span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${states.slice(0,2).map(s=>`<span class="chip c-${s}">${STATE[s].label}</span>`).join("")}</span></div>`}).join("")}</div>
+    <footer><span class="meta">${plural(p.s.products,"product")} · ${p.s.progress} in progress · ${p.s.waiting} waiting on client</span><span class="link">See full profile &rarr;</span></footer>
+  </article>`;
+}
+document.getElementById("app").innerHTML = `
+<section class="page-head rise"><div><h1>What each person is <em>building</em></h1><p class="lede">${people.length} developers. Big number = products with at least one live client. Below it, how many client deployments (one product for one client) are live. Click a card for the full profile.</p></div>
+  <div class="stat"><span class="big">${PROD_LIVE}/${PROD_ALL}</span><span class="meta">products live across the team</span></div></section>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">${legend()}${src(SRC_A+", Lead developer column")}</div>
+<div class="grid">${people.map(card).join("")}</div>`;
+}
+boot(page);
+</script>
+</body></html>
